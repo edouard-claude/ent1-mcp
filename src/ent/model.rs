@@ -10,28 +10,39 @@ use serde_json::Value;
 
 use super::ids::{CahierId, DestinataireId, MessageId, MotId, UtilisateurId};
 
+/// `null` → valeur par défaut. L'ENT renvoie `null` là où l'on attendrait
+/// une liste vide ou une chaîne vide (ex. `classNames` d'un compte parent) ;
+/// `#[serde(default)]` seul ne couvre que les champs absents.
+fn nul_ou<'de, D, T>(d: D) -> Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: Default + Deserialize<'de>,
+{
+    Ok(Option::<T>::deserialize(d)?.unwrap_or_default())
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct UserInfo {
     pub user_id: UtilisateurId,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub username: String,
-    #[serde(rename = "type", default)]
+    #[serde(rename = "type", default, deserialize_with = "nul_ou")]
     pub profil: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub children: BTreeMap<String, Enfant>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub structure_names: Vec<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub class_names: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Enfant {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub first_name: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub last_name: String,
 }
 
@@ -39,7 +50,7 @@ pub struct Enfant {
 #[serde(rename_all = "camelCase")]
 pub struct Personne {
     pub id: DestinataireId,
-    #[serde(default, alias = "name")]
+    #[serde(default, alias = "name", deserialize_with = "nul_ou")]
     pub display_name: String,
     #[serde(default)]
     pub profile: Option<String>,
@@ -47,9 +58,9 @@ pub struct Personne {
 
 #[derive(Debug, Default, Deserialize)]
 pub struct Destinataires {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub users: Vec<Personne>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub groups: Vec<Personne>,
 }
 
@@ -61,13 +72,13 @@ pub struct MessageResume {
     pub subject: Option<String>,
     #[serde(default)]
     pub from: Option<Personne>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub to: Destinataires,
     #[serde(default)]
     pub date: Option<i64>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub unread: bool,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub has_attachment: bool,
     #[serde(default)]
     pub state: Option<String>,
@@ -87,15 +98,15 @@ pub struct Message {
     pub body: Option<String>,
     #[serde(default)]
     pub from: Option<Personne>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub to: Destinataires,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub cc: Destinataires,
     #[serde(default)]
     pub date: Option<i64>,
     #[serde(default)]
     pub state: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub attachments: Vec<PieceJointe>,
 }
 
@@ -123,7 +134,7 @@ pub struct Cree {
 #[serde(rename_all = "camelCase")]
 pub struct Visible {
     pub id: DestinataireId,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub display_name: String,
     #[serde(default)]
     pub profile: Option<String>,
@@ -136,14 +147,14 @@ pub struct Visible {
 #[derive(Debug, Deserialize)]
 pub struct Mot {
     pub id: MotId,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub title: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub text: String,
     #[serde(default)]
     pub sending_date: Option<String>,
     /// Le mot accepte-t-il une réponse du parent ?
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub reply: bool,
     #[serde(default)]
     pub category: Option<String>,
@@ -175,7 +186,7 @@ pub struct ReponseMot {
 pub struct CahierResume {
     #[serde(rename = "_id")]
     pub id: CahierId,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub title: String,
 }
 
@@ -183,25 +194,27 @@ pub struct CahierResume {
 pub struct Cahier {
     #[serde(rename = "_id")]
     pub id: CahierId,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub title: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub data: Vec<JourCahier>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct JourCahier {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub date: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub entries: Vec<EntreeCahier>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct EntreeCahier {
-    #[serde(default)]
+    #[serde(rename = "_id", default)]
+    pub id: Option<String>,
+    #[serde(default, deserialize_with = "nul_ou")]
     pub title: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub value: String,
 }
 
@@ -209,9 +222,9 @@ pub struct EntreeCahier {
 #[serde(rename_all = "camelCase")]
 pub struct Actualite {
     pub id: Value,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub title: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub content: String,
     #[serde(default)]
     pub owner: Option<Personne>,
@@ -219,25 +232,25 @@ pub struct Actualite {
     pub publication_date: Option<String>,
     #[serde(default)]
     pub created: Option<String>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub headline: bool,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct Notifications {
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub results: Vec<Notification>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct Notification {
-    #[serde(rename = "type", default)]
+    #[serde(rename = "type", default, deserialize_with = "nul_ou")]
     pub nature: String,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub message: String,
     #[serde(default)]
     pub date: Value,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "nul_ou")]
     pub params: NotificationParams,
 }
 
@@ -248,4 +261,39 @@ pub struct NotificationParams {
     pub username: Option<String>,
     #[serde(default)]
     pub resource_uri: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct StatutEntree {
+    pub entry_id: String,
+    #[serde(default, deserialize_with = "nul_ou")]
+    pub finished: bool,
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used)] // tests
+mod tests {
+    use super::*;
+
+    #[test]
+    fn userinfo_tolere_les_null() {
+        // Forme réelle d'un compte parent : `classNames` vaut `null`.
+        let u: UserInfo = serde_json::from_str(
+            r#"{"userId":"u1","username":"X","type":"PERSRELELEVE","children":{"e1":{"firstName":"A","lastName":null}},"structureNames":["Ecole"],"classNames":null}"#,
+        )
+        .expect("userinfo décodé");
+        assert!(u.class_names.is_empty());
+        assert_eq!(u.children["e1"].last_name, "");
+    }
+
+    #[test]
+    fn mot_tolere_les_null() {
+        let m: Mot = serde_json::from_str(
+            r#"{"id":1,"title":null,"text":"t","sending_date":"2026-09-28","reply":null,"category":"c","owner_name":"o","responses":null,"acknowledgments":null}"#,
+        )
+        .expect("mot décodé");
+        assert!(!m.reply);
+        assert_eq!(m.title, "");
+    }
 }

@@ -35,7 +35,7 @@
 
 > « Y a-t-il des mots du carnet de liaison que je n'ai pas encore signés ? Signe-les. »
 
-> « Quels sont les devoirs de Léa pour jeudi ? »
+> « Quels sont les devoirs de Léa pour jeudi ? Coche ceux qu'elle a déjà faits. »
 
 > « Écris à la maîtresse de CM1 pour la prévenir que Léa sera absente vendredi matin (rendez-vous chez l'orthophoniste). Montre-moi le message avant de l'envoyer. »
 
@@ -47,7 +47,7 @@ L'assistant enchaîne lui-même les outils : il cherche l'enseignante dans l'ann
 
 ## Fonctionnalités
 
-47 outils, regroupés par application de l'ENT. Les outils de lecture sont annotés `readOnlyHint`, les suppressions `destructiveHint` : les clients MCP s'en servent pour demander (ou non) votre confirmation.
+48 outils, regroupés par application de l'ENT. Les outils de lecture sont annotés `readOnlyHint`, les suppressions `destructiveHint` : les clients MCP s'en servent pour demander (ou non) votre confirmation.
 
 | Application | Outils | Lecture | Écriture |
 |---|---|:-:|:-:|
@@ -56,7 +56,7 @@ L'assistant enchaîne lui-même les outils : il cherche l'enseignante dans l'ann
 | **Messagerie** | `messagerie_lister`, `messagerie_lire`, `messagerie_non_lus`, `messagerie_envoyer`, `messagerie_enregistrer_brouillon`, `messagerie_joindre_fichier`, `messagerie_telecharger_piece_jointe`, `messagerie_marquer`, `messagerie_deplacer`, `messagerie_supprimer`, `messagerie_restaurer`, `messagerie_rappeler`, `messagerie_dossiers`, `messagerie_creer_dossier` | ✅ | ✅ |
 | **Annuaire** | `annuaire_rechercher`, `annuaire_fiche` | ✅ | |
 | **Carnet de liaison** | `carnet_lister`, `carnet_signer`, `carnet_repondre` | ✅ | ✅ |
-| **Cahier de texte** | `cahier_lister`, `cahier_lire` | ✅ | |
+| **Cahier de texte** | `cahier_lister`, `cahier_lire`, `cahier_marquer` (devoir fait / à faire) | ✅ | ✅ |
 | **Actualités** | `actualites_lister`, `actualites_fils`, `actualites_lire`, `actualites_commenter` | ✅ | ✅ |
 | **Blog** | `blog_lister`, `blog_billets`, `blog_commentaires`, `blog_commenter`, `blog_supprimer_commentaire` | ✅ | ✅ |
 | **Calendrier** | `calendrier_lister`, `calendrier_evenements` | ✅ | |
@@ -216,7 +216,7 @@ Les ENT qui imposent une connexion **ÉduConnect** ou une double authentificatio
           ▼
  ┌──────────────────────────────┐
  │ ent1-mcp                     │
- │  outils/   47 outils MCP     │  un module par application de l'ENT
+ │  outils/   48 outils MCP     │  un module par application de l'ENT
  │  texte.rs  HTML ⇄ texte      │
  │  ent/      client HTTP       │  session, reconnexion, XSRF, identifiants typés
  └──────────────┬───────────────┘
@@ -268,7 +268,7 @@ npx @modelcontextprotocol/inspector target/release/ent1-mcp
 - **ÉduConnect, FranceConnect et double authentification** : seule la connexion par identifiant et mot de passe de l'ENT est prise en charge.
 - **Premières connexions** : si l'ENT exige une action (acceptation de nouvelles CGU, changement de mot de passe), le serveur le signale ; faites-la une fois dans le navigateur.
 - **Formulaires** : lecture des questions et lien de réponse ; la saisie des réponses se fait dans le navigateur.
-- **Calendrier, wiki, cahier de texte** : lecture seule (le parent n'y écrit pas).
+- **Calendrier et wiki** : lecture seule. Dans le cahier de texte, seule la case « fait » est modifiable (comme dans l'ENT).
 - **API non documentée** : une mise à jour de l'ENT peut casser un outil. Le script de vérification permet de le détecter rapidement.
 
 ## Feuille de route
