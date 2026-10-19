@@ -3,7 +3,7 @@
   "name": "io.github.edouard-claude/ent1-mcp",
   "title": "ENT ONE (Edifice)",
   "description": "ENT ONE school workspace for parents: teacher messaging, liaison book, homework, news.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "repository": {
     "url": "https://github.com/edouard-claude/ent1-mcp",
     "source": "github"
@@ -12,7 +12,7 @@
   "packages": [
     {
       "registryType": "oci",
-      "identifier": "ghcr.io/edouard-claude/ent1-mcp:0.1.0",
+      "identifier": "ghcr.io/edouard-claude/ent1-mcp:0.1.1",
       "transport": {
         "type": "stdio"
       },

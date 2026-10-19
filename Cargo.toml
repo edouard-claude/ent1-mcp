@@ -1,6 +1,6 @@
 [package]
 name = "ent1-mcp"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 rust-version = "1.88"
 description = "Serveur MCP (Model Context Protocol) pour l'ENT ONE / Edifice : messagerie, carnet de liaison, cahier de texte, actualités."
