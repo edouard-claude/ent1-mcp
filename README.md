@@ -94,14 +94,26 @@ cargo build --release
 # binaire : target/release/ent1-mcp
 ```
 
-### Avec Docker (mode HTTP)
+### Avec Docker
+
+L'image est publiée sur GitHub Container Registry à chaque version. Par défaut elle parle en stdio, comme le binaire :
 
 ```bash
-docker build -t ent1-mcp .
-docker run --rm -p 8080:8080 \
-  -e ENT1_IDENTIFIANT -e ENT1_MOT_DE_PASSE -e ENT1_MCP_JETON \
-  ent1-mcp
+docker run --rm -i -e ENT1_IDENTIFIANT -e ENT1_MOT_DE_PASSE ghcr.io/edouard-claude/ent1-mcp
 ```
+
+En mode HTTP :
+
+```bash
+docker run --rm -p 8080:8080 \
+  -e ENT1_TRANSPORT=http -e ENT1_ECOUTE=0.0.0.0:8080 \
+  -e ENT1_IDENTIFIANT -e ENT1_MOT_DE_PASSE -e ENT1_MCP_JETON \
+  ghcr.io/edouard-claude/ent1-mcp
+```
+
+### Depuis le registre officiel MCP
+
+Le serveur est référencé dans le [registre MCP](https://registry.modelcontextprotocol.io) sous le nom `io.github.edouard-claude/ent1-mcp` : les clients qui s'appuient sur le registre le proposent directement, avec les variables à renseigner.
 
 ## Configuration
 
@@ -109,8 +121,8 @@ Tout se règle par variables d'environnement. Les **secrets** ne peuvent pas êt
 
 | Variable | Obligatoire | Défaut | Rôle |
 |---|:-:|---|---|
-| `ENT1_IDENTIFIANT` | ✅ | | Identifiant de connexion à l'ENT (ex. `prenom.nom`) |
-| `ENT1_MOT_DE_PASSE` | ✅ | | Mot de passe de l'ENT |
+| `ENT1_IDENTIFIANT` | ✅* | | Identifiant de connexion à l'ENT (ex. `prenom.nom`) |
+| `ENT1_MOT_DE_PASSE` | ✅* | | Mot de passe de l'ENT |
 | `ENT1_URL` | | `https://ent1d.ac-reunion.fr` | Adresse de votre ENT |
 | `ENT1_FUSEAU` | | `Indian/Reunion` | Fuseau horaire des dates renvoyées |
 | `ENT1_TRANSPORT` | | `stdio` | `stdio` (client local) ou `http` (serveur distant) |
@@ -122,6 +134,8 @@ Tout se règle par variables d'environnement. Les **secrets** ne peuvent pas êt
 Un modèle est fourni dans [`.env.exemple`](.env.exemple).
 
 Au démarrage, le serveur ouvre une session sur l'ENT : des identifiants erronés sont signalés tout de suite, pas au premier appel d'outil.
+
+\* Sans aucun des deux, le serveur démarre quand même (utile pour l'inspecter ou le référencer) : il liste ses outils, et chacun répond qu'aucun compte n'est configuré.
 
 ## Brancher un assistant
 
@@ -277,7 +291,8 @@ npx @modelcontextprotocol/inspector target/release/ent1-mcp
 - [ ] Réponse aux formulaires depuis l'assistant.
 - [ ] Création d'événements dans son calendrier personnel.
 - [ ] Élicitation MCP : confirmation native avant chaque envoi.
-- [ ] Binaires précompilés (macOS, Linux, Windows) et image Docker publiée.
+- [x] Image Docker publiée (GHCR) et référencement dans le registre officiel MCP.
+- [ ] Binaires précompilés (macOS, Linux, Windows).
 - [ ] Tests d'intégration sur un serveur ENT simulé.
 
 ## Contribuer

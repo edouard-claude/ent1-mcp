@@ -220,10 +220,10 @@ mod tests {
         let base = reqwest::Url::parse("https://ent.invalid").expect("URL de test valide");
         let ent = EntClient::new(
             base,
-            crate::ent::Identifiants {
+            Some(crate::ent::Identifiants {
                 identifiant: "test".into(),
                 mot_de_passe: "test".to_owned().into(),
-            },
+            }),
         )
         .expect("client de test");
         let serveur = Ent1Server::new(Arc::new(ent), TimeZone::UTC);

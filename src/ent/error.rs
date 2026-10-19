@@ -7,6 +7,12 @@ use reqwest::StatusCode;
 #[derive(Debug, thiserror::Error)]
 #[non_exhaustive]
 pub enum EntError {
+    #[error(
+        "aucun compte ENT configuré : définissez ENT1_IDENTIFIANT et ENT1_MOT_DE_PASSE \
+         dans la configuration du serveur MCP, puis redémarrez-le"
+    )]
+    NonConfigure,
+
     #[error("l'ENT a refusé l'identifiant ou le mot de passe")]
     IdentifiantsRefuses,
 

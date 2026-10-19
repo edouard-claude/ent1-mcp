@@ -48,9 +48,10 @@ struct Options {
     #[arg(long, env = "ENT1_URL", default_value = ent::client::URL_PAR_DEFAUT)]
     url: reqwest::Url,
 
-    /// Identifiant ENT (le même que sur la page de connexion).
+    /// Identifiant ENT (le même que sur la page de connexion). Sans identifiant,
+    /// le serveur démarre quand même et chaque outil explique comment le configurer.
     #[arg(long, env = "ENT1_IDENTIFIANT")]
-    identifiant: String,
+    identifiant: Option<String>,
 
     /// Fuseau horaire des dates renvoyées.
     #[arg(long, env = "ENT1_FUSEAU", default_value = "Indian/Reunion")]
@@ -72,7 +73,7 @@ struct Options {
 /// Les secrets ne passent jamais en argument : ils apparaîtraient dans la
 /// liste des processus.
 const AIDE_SECRETS: &str = "Secrets (variables d'environnement uniquement) :
-  ENT1_MOT_DE_PASSE  mot de passe ENT (obligatoire)
+  ENT1_MOT_DE_PASSE  mot de passe ENT
   ENT1_MCP_JETON     jeton d'accès exigé en mode HTTP (32 caractères minimum)";
 
 /// Lit un secret dans l'environnement.
@@ -95,20 +96,39 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let opts = Options::parse();
-    let mot_de_passe = secret("ENT1_MOT_DE_PASSE").context("variable ENT1_MOT_DE_PASSE absente")?;
     let fuseau = jiff::tz::TimeZone::get(&opts.fuseau)
         .with_context(|| format!("fuseau horaire inconnu : {}", opts.fuseau))?;
 
-    let ent = Arc::new(EntClient::new(
-        opts.url.clone(),
-        Identifiants {
-            identifiant: opts.identifiant.trim().into(),
+    let identifiants = match (
+        opts.identifiant
+            .as_deref()
+            .map(str::trim)
+            .filter(|i| !i.is_empty()),
+        secret("ENT1_MOT_DE_PASSE"),
+    ) {
+        (Some(identifiant), Some(mot_de_passe)) => Some(Identifiants {
+            identifiant: identifiant.into(),
             mot_de_passe,
-        },
-    )?);
-    ent.connecter()
-        .await
-        .with_context(|| format!("connexion à {} impossible", opts.url))?;
+        }),
+        (None, None) => {
+            tracing::warn!(
+                "ENT1_IDENTIFIANT et ENT1_MOT_DE_PASSE absents : démarrage sans compte, \
+                 les outils répondront « non configuré »"
+            );
+            None
+        }
+        (Some(_), None) => bail!("ENT1_IDENTIFIANT est défini mais ENT1_MOT_DE_PASSE est absent"),
+        (None, Some(_)) => bail!("ENT1_MOT_DE_PASSE est défini mais ENT1_IDENTIFIANT est absent"),
+    };
+    let configure = identifiants.is_some();
+
+    let ent = Arc::new(EntClient::new(opts.url.clone(), identifiants)?);
+    if configure {
+        // Échouer tôt : des identifiants faux se voient au démarrage, pas au premier outil.
+        ent.connecter()
+            .await
+            .with_context(|| format!("connexion à {} impossible", opts.url))?;
+    }
 
     match opts.transport {
         Transport::Stdio => {

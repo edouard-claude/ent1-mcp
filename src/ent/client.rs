@@ -46,7 +46,8 @@ pub struct EntClient {
     /// Partagé avec `http` : on y lit le cookie XSRF-TOKEN.
     cookies: Arc<Jar>,
     base: Url,
-    identifiants: Identifiants,
+    /// `None` : serveur démarré sans compte (introspection, annuaires MCP).
+    identifiants: Option<Identifiants>,
     /// Tenu à travers `.await` volontairement : il sérialise les
     /// reconnexions, pour que N requêtes en 401 simultanées ne déclenchent
     /// qu'une seule connexion (et pas N tentatives de mot de passe).
@@ -59,7 +60,7 @@ pub struct EntClient {
 }
 
 impl EntClient {
-    pub fn new(base: Url, identifiants: Identifiants) -> Result<Self> {
+    pub fn new(base: Url, identifiants: Option<Identifiants>) -> Result<Self> {
         let cookies = Arc::new(Jar::default());
         let http = reqwest::Client::builder()
             .cookie_provider(Arc::clone(&cookies))
@@ -100,10 +101,13 @@ impl EntClient {
         if self.identifiants_refuses.load(Ordering::Acquire) {
             return Err(EntError::IdentifiantsRefuses);
         }
+        let Some(identifiants) = &self.identifiants else {
+            return Err(EntError::NonConfigure);
+        };
 
         let formulaire = [
-            ("email", self.identifiants.identifiant.as_ref()),
-            ("password", self.identifiants.mot_de_passe.expose_secret()),
+            ("email", identifiants.identifiant.as_ref()),
+            ("password", identifiants.mot_de_passe.expose_secret()),
             ("callBack", ""),
             ("details", ""),
         ];

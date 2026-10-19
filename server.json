@@ -1,0 +1,49 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.edouard-claude/ent1-mcp",
+  "title": "ENT ONE (Edifice)",
+  "description": "ENT ONE school workspace for parents: teacher messaging, liaison book, homework, news.",
+  "version": "0.1.0",
+  "repository": {
+    "url": "https://github.com/edouard-claude/ent1-mcp",
+    "source": "github"
+  },
+  "websiteUrl": "https://github.com/edouard-claude/ent1-mcp",
+  "packages": [
+    {
+      "registryType": "oci",
+      "identifier": "ghcr.io/edouard-claude/ent1-mcp:0.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "ENT1_IDENTIFIANT",
+          "description": "ENT login (same as on the ENT sign-in page)",
+          "isRequired": true,
+          "isSecret": false
+        },
+        {
+          "name": "ENT1_MOT_DE_PASSE",
+          "description": "ENT password",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "ENT1_URL",
+          "description": "ENT address",
+          "default": "https://ent1d.ac-reunion.fr",
+          "isRequired": false,
+          "isSecret": false
+        },
+        {
+          "name": "ENT1_FUSEAU",
+          "description": "Time zone of returned dates",
+          "default": "Indian/Reunion",
+          "isRequired": false,
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}
