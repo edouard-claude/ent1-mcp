@@ -1,20 +1,29 @@
 # Sur un tag vX.Y.Z : image Docker sur GHCR, puis publication dans le
 # registre officiel MCP (authentification OIDC, aucun secret à gérer).
+#
+# Chaîne d'approvisionnement : actions épinglées par commit, mcp-publisher
+# épinglé par version et vérifié par SHA-256, et chaque job ne reçoit que
+# la permission dont il a besoin.
 name: Publication
 
 on:
   push:
     tags: ["v*"]
 
+permissions: {}
+
+env:
+  MCP_PUBLISHER_VERSION: v1.8.1
+  MCP_PUBLISHER_SHA256: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
+
 jobs:
-  publier:
+  image:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-      id-token: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Vérifier que le tag correspond aux versions déclarées
         run: |
@@ -22,31 +31,44 @@ jobs:
           grep -q "^version = \"$VERSION\"" Cargo.toml
           jq -e --arg v "$VERSION" '.version == $v and (.packages[0].identifier | endswith(":" + $v))' server.json
 
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Version sans « v » (format attendu par server.json)
+        id: version
+        run: echo "valeur=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
       - name: Construire et pousser l'image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
           context: .
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: |
+            ghcr.io/edouard-claude/ent1-mcp:${{ steps.version.outputs.valeur }}
             ghcr.io/edouard-claude/ent1-mcp:${{ github.ref_name }}
             ghcr.io/edouard-claude/ent1-mcp:latest
-          # Le registre MCP attend le tag sans « v » (cf. server.json).
-          # On pousse donc aussi X.Y.Z.
-      - name: Ajouter le tag X.Y.Z
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          docker buildx imagetools create -t "ghcr.io/edouard-claude/ent1-mcp:$VERSION" "ghcr.io/edouard-claude/ent1-mcp:${GITHUB_REF_NAME}"
 
-      - name: Installer mcp-publisher
+  registre:
+    needs: image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Installer mcp-publisher (version épinglée, empreinte vérifiée)
         run: |
-          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" | tar xz mcp-publisher
+          curl -fsSL -o mcp-publisher.tar.gz \
+            "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/mcp-publisher_linux_amd64.tar.gz"
+          echo "${MCP_PUBLISHER_SHA256}  mcp-publisher.tar.gz" | sha256sum -c -
+          tar xzf mcp-publisher.tar.gz mcp-publisher
 
       - name: Publier dans le registre MCP
         run: |
