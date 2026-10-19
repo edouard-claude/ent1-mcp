@@ -191,13 +191,13 @@ impl EntClient {
     {
         let generation = self.generation.load(Ordering::Acquire);
         let rep = construire()?.send().await?;
-        if !session_perdue(&rep) {
+        if !session_perdue(&rep, &self.base) {
             return verifier(rep, chemin);
         }
         tracing::debug!(chemin, "session perdue, reconnexion");
         self.reconnecter(generation).await?;
         let rep = construire()?.send().await?;
-        if session_perdue(&rep) {
+        if session_perdue(&rep, &self.base) {
             return Err(EntError::SessionExpiree);
         }
         verifier(rep, chemin)
@@ -314,12 +314,15 @@ impl EntClient {
         Ok((rep.bytes().await?.to_vec(), type_mime))
     }
 
-    /// Ferme la session côté ENT.
+    /// Ferme la session côté ENT, puis en rouvre une aussitôt : l'outil `deconnexion` sert
+    /// à repartir d'une session propre, pas à rester déconnecté.
     pub async fn deconnecter(&self) -> Result<()> {
-        let _garde = self.connexion.lock().await;
-        let _ = self.http.get(self.url("/auth/logout")?).send().await?;
-        self.generation.fetch_add(1, Ordering::AcqRel);
-        Ok(())
+        {
+            let _garde = self.connexion.lock().await;
+            let _ = self.http.get(self.url("/auth/logout")?).send().await?;
+            self.generation.fetch_add(1, Ordering::AcqRel);
+        }
+        self.connecter().await
     }
 }
 
@@ -340,18 +343,34 @@ pub fn chemin(morceaux: &[&str]) -> Result<String> {
     Ok(sortie)
 }
 
-/// 401, ou redirection vers la page de connexion. Les autres redirections
-/// (téléchargement servi ailleurs, par exemple) ne sont pas des pertes de session.
-fn session_perdue(rep: &Response) -> bool {
-    match rep.status() {
-        StatusCode::UNAUTHORIZED => true,
-        s if s.is_redirection() => rep
-            .headers()
-            .get(LOCATION)
-            .and_then(|v| v.to_str().ok())
-            .is_some_and(|cible| cible.contains("/auth/login")),
-        _ => false,
+/// 401, ou redirection qui ne sert pas de contenu : vers l'ENT lui-même (une API ne
+/// redirige jamais vers une autre de ses pages quand la session tient), ou vers une page
+/// d'authentification ailleurs. Seule une redirection vers un autre hôte qui n'est pas une
+/// page de connexion (téléchargement servi ailleurs) garde la session.
+///
+/// Avant, seule une redirection vers `/auth/login` comptait : l'ENT renvoie aussi des 302
+/// vers d'autres adresses quand la session meurt, et le serveur ne se reconnectait plus
+/// (relevé des devoirs du 19/10 : « 302 Found sur /homeworks/get/… »).
+fn session_perdue(rep: &Response, base: &Url) -> bool {
+    let cible = rep.headers().get(LOCATION).and_then(|v| v.to_str().ok());
+    perte_de_session(rep.status(), cible, base)
+}
+
+fn perte_de_session(status: StatusCode, cible: Option<&str>, base: &Url) -> bool {
+    if status == StatusCode::UNAUTHORIZED {
+        return true;
     }
+    if !status.is_redirection() {
+        return false;
+    }
+    let Some(url) = cible.and_then(|c| base.join(c).ok()) else {
+        return true;
+    };
+    let chez_nous = url.host_str() == base.host_str();
+    let authentification = ["/auth", "login", "/cas", "/sso", "oauth", "saml"]
+        .iter()
+        .any(|m| url.path().to_lowercase().contains(m));
+    chez_nous || authentification
 }
 
 fn exige_une_action(cible: &str) -> bool {
@@ -408,6 +427,28 @@ mod tests {
             Some("/conversation/api/messages/abc-123")
         );
         assert!(chemin(&["/conversation/api/messages/", "../../auth/logout"]).is_err());
+    }
+
+    #[test]
+    fn une_redirection_vers_l_ent_est_une_session_perdue()
+    -> std::result::Result<(), Box<dyn std::error::Error>> {
+        let base = Url::parse("https://ent.exemple.fr/")?;
+        let perdue = |c: Option<&str>| perte_de_session(StatusCode::FOUND, c, &base);
+        assert!(perdue(Some("/auth/login?callback=%2Fhomeworks")));
+        assert!(perdue(Some("/timeline/timeline")), "toute page de l'ENT");
+        assert!(perdue(Some("https://ent.exemple.fr/auth/oauth2/userinfo")));
+        assert!(
+            perdue(Some("https://sso.academie.fr/cas/login")),
+            "SSO ailleurs"
+        );
+        assert!(perdue(None), "302 sans adresse");
+        assert!(
+            !perdue(Some("https://stockage.exemple.net/fichiers/abc.pdf")),
+            "téléchargement servi ailleurs"
+        );
+        assert!(perte_de_session(StatusCode::UNAUTHORIZED, None, &base));
+        assert!(!perte_de_session(StatusCode::OK, None, &base));
+        Ok(())
     }
 
     #[test]

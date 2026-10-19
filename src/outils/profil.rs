@@ -63,8 +63,9 @@ impl Ent1Server {
     }
 
     #[tool(
-        description = "Ferme la session ENT en cours. La prochaine action rouvrira une session \
-                       automatiquement avec les identifiants configurés.",
+        description = "Ferme la session ENT en cours et en rouvre une aussitôt avec les \
+                       identifiants configurés : à appeler quand l'ENT répond par une \
+                       redirection ou une session expirée.",
         annotations(
             title = "Se déconnecter",
             read_only_hint = false,
