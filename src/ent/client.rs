@@ -185,19 +185,19 @@ impl EntClient {
 
     /// Envoie une requête ; en cas de session perdue, se reconnecte une
     /// fois et rejoue la requête.
-    async fn executer<F>(&self, chemin: &str, construire: F) -> Result<Response>
+    async fn executer<F>(&self, chemin: &str, lecture: bool, construire: F) -> Result<Response>
     where
         F: Fn() -> Result<RequestBuilder>,
     {
         let generation = self.generation.load(Ordering::Acquire);
         let rep = construire()?.send().await?;
-        if !session_perdue(&rep, &self.base) {
+        if !session_perdue(&rep, &self.base, lecture) {
             return verifier(rep, chemin);
         }
         tracing::debug!(chemin, "session perdue, reconnexion");
         self.reconnecter(generation).await?;
         let rep = construire()?.send().await?;
-        if session_perdue(&rep, &self.base) {
+        if session_perdue(&rep, &self.base, lecture) {
             return Err(EntError::SessionExpiree);
         }
         verifier(rep, chemin)
@@ -214,7 +214,8 @@ impl EntClient {
         B: Serialize + ?Sized,
         Q: Serialize + ?Sized,
     {
-        self.executer(chemin, || {
+        let lecture = matches!(methode, Method::GET | Method::HEAD);
+        self.executer(chemin, lecture, || {
             let mut req = self.preparer(&methode, chemin)?;
             if let Some(q) = query {
                 req = req.query(q);
@@ -283,7 +284,7 @@ impl EntClient {
         // `Bytes` : le rejeu après reconnexion partage le tampon au lieu de le copier.
         let contenu = bytes::Bytes::from(contenu);
         let rep = self
-            .executer(chemin, || {
+            .executer(chemin, false, || {
                 let mut form = multipart::Form::new().part(
                     "file",
                     multipart::Part::stream_with_length(
@@ -348,15 +349,19 @@ pub fn chemin(morceaux: &[&str]) -> Result<String> {
 /// d'authentification ailleurs. Seule une redirection vers un autre hôte qui n'est pas une
 /// page de connexion (téléchargement servi ailleurs) garde la session.
 ///
+/// Pour une écriture (`lecture` faux), seules un 401 et une redirection vers une page
+/// d'authentification comptent : une redirection vers l'ENT après un envoi réussi
+/// (POST puis redirection) ne doit pas faire rejouer l'envoi.
+///
 /// Avant, seule une redirection vers `/auth/login` comptait : l'ENT renvoie aussi des 302
 /// vers d'autres adresses quand la session meurt, et le serveur ne se reconnectait plus
 /// (relevé des devoirs du 19/10 : « 302 Found sur /homeworks/get/… »).
-fn session_perdue(rep: &Response, base: &Url) -> bool {
+fn session_perdue(rep: &Response, base: &Url, lecture: bool) -> bool {
     let cible = rep.headers().get(LOCATION).and_then(|v| v.to_str().ok());
-    perte_de_session(rep.status(), cible, base)
+    perte_de_session(rep.status(), cible, base, lecture)
 }
 
-fn perte_de_session(status: StatusCode, cible: Option<&str>, base: &Url) -> bool {
+fn perte_de_session(status: StatusCode, cible: Option<&str>, base: &Url, lecture: bool) -> bool {
     if status == StatusCode::UNAUTHORIZED {
         return true;
     }
@@ -364,13 +369,13 @@ fn perte_de_session(status: StatusCode, cible: Option<&str>, base: &Url) -> bool
         return false;
     }
     let Some(url) = cible.and_then(|c| base.join(c).ok()) else {
-        return true;
+        return lecture;
     };
     let chez_nous = url.host_str() == base.host_str();
     let authentification = ["/auth", "login", "/cas", "/sso", "oauth", "saml"]
         .iter()
         .any(|m| url.path().to_lowercase().contains(m));
-    chez_nous || authentification
+    authentification || (lecture && chez_nous)
 }
 
 fn exige_une_action(cible: &str) -> bool {
@@ -433,7 +438,7 @@ mod tests {
     fn une_redirection_vers_l_ent_est_une_session_perdue()
     -> std::result::Result<(), Box<dyn std::error::Error>> {
         let base = Url::parse("https://ent.exemple.fr/")?;
-        let perdue = |c: Option<&str>| perte_de_session(StatusCode::FOUND, c, &base);
+        let perdue = |c: Option<&str>| perte_de_session(StatusCode::FOUND, c, &base, true);
         assert!(perdue(Some("/auth/login?callback=%2Fhomeworks")));
         assert!(perdue(Some("/timeline/timeline")), "toute page de l'ENT");
         assert!(perdue(Some("https://ent.exemple.fr/auth/oauth2/userinfo")));
@@ -446,8 +451,25 @@ mod tests {
             !perdue(Some("https://stockage.exemple.net/fichiers/abc.pdf")),
             "téléchargement servi ailleurs"
         );
-        assert!(perte_de_session(StatusCode::UNAUTHORIZED, None, &base));
-        assert!(!perte_de_session(StatusCode::OK, None, &base));
+        assert!(perte_de_session(
+            StatusCode::UNAUTHORIZED,
+            None,
+            &base,
+            true
+        ));
+        assert!(!perte_de_session(StatusCode::OK, None, &base, true));
+        // Une écriture n'est rejouée que sur un 401 ou une page d'authentification : la
+        // redirection qui suit un envoi réussi ne le fait pas renvoyer.
+        let ecriture = |c: Option<&str>| perte_de_session(StatusCode::FOUND, c, &base, false);
+        assert!(!ecriture(Some("/conversation/conversation")));
+        assert!(!ecriture(None));
+        assert!(ecriture(Some("/auth/login")));
+        assert!(perte_de_session(
+            StatusCode::UNAUTHORIZED,
+            None,
+            &base,
+            false
+        ));
         Ok(())
     }
 
