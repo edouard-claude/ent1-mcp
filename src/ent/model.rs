@@ -283,7 +283,7 @@ mod tests {
             r#"{"userId":"u1","username":"X","type":"PERSRELELEVE","children":{"e1":{"firstName":"A","lastName":null}},"structureNames":["Ecole"],"classNames":null}"#,
         )
         .expect("userinfo décodé");
-        assert!(u.class_names.is_empty());
+        assert_eq!(u.class_names, Vec::<String>::new());
         assert_eq!(u.children["e1"].last_name, "");
     }
 
